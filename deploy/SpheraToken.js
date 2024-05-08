@@ -4,12 +4,13 @@ module.exports = async function ({ deployments, getNamedAccounts }) {
 
     console.log(`>>> your address: ${deployer}`)
 
-    await deploy("Market_Hedera", {
+    await deploy("SpheraToken", {
         from: deployer,
+        args: ["SpheraToken", "SPT"],
         log: true,
         waitConfirmations: 3,
     })
-    await hre.run("verifyContract", { contract: "Market_Hedera" })
+    await hre.run("verifyContract", { contract: "SpheraToken" })
 }
 
-module.exports.tags = ["Market_Hedera"]
+module.exports.tags = ["SpheraToken"]

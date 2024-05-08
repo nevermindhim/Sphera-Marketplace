@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.0 <0.9.0;
 
-import "./HederaTokenService.sol";
-import "./IHederaTokenService.sol";
-import "./HederaResponseCodes.sol";
+// import "./HederaTokenService.sol";
+// import "./IHederaTokenService.sol";
+// import "./HederaResponseCodes.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Royalty.sol";
 
-contract Market_Hedera is HederaTokenService {
+contract NFTMarketplace is ERC2981 {
     // Error Codes
     enum MarketResponseCodes {
         SUCCESS,
@@ -65,6 +68,11 @@ contract Market_Hedera is HederaTokenService {
         bool isListed;
     }
 
+    struct NonFungibleTokenInfo {
+        address owner;
+        address spender;
+    }
+
     /////////////////////////////////
     ////////// VARIABLES ////////////
     /////////////////////////////////
@@ -82,7 +90,7 @@ contract Market_Hedera is HederaTokenService {
     mapping(string => NFT) public nfts;
     address internal contractOwner;
 
-    address public spheraTokenAddress;
+    IERC20 public spheraTokenAddress;
     address treasuryWalletAddress;
     uint public taxFee = 25; //divided by 1000
 
@@ -153,7 +161,7 @@ contract Market_Hedera is HederaTokenService {
     }
 
     function registerSpheraToken(address _tokenAddress) public onlyContractOwner {
-        spheraTokenAddress = _tokenAddress;
+        spheraTokenAddress = IERC20(_tokenAddress);
     }
 
     function setTreasuryWalletAddress(address _walletAddress) public onlyContractOwner {
@@ -165,8 +173,9 @@ contract Market_Hedera is HederaTokenService {
 
         // (bool sent, ) = recipient.call{value: amount}("");
         // require(sent, "Failed to send Sph");
-        int response = HederaTokenService.transferToken(spheraTokenAddress, address(this), recipient, int64(uint64(amount)));
-        require(response == HederaResponseCodes.SUCCESS, "Failed to transfer Sphera Token");
+        //int response = HederaTokenService.transferToken(spheraTokenAddress, address(this), recipient, int64(uint64(amount)));
+        spheraTokenAddress.transfer(recipient, amount);
+        //require(response == HederaResponseCodes.SUCCESS, "Failed to transfer Sphera Token");
 
         if (sender != address(this)) {
             buyersTokens[sender].sphs -= amount;
@@ -274,15 +283,15 @@ contract Market_Hedera is HederaTokenService {
     //////////// PUBLIC /////////////
     /////////////////////////////////
 
-    function associateToken(address _token) external onlyContractOwner returns (int) {
-        int response = HederaTokenService.associateToken(address(this), _token);
+    // function associateToken(address _token) external onlyContractOwner returns (int) {
+    //     int response = HederaTokenService.associateToken(address(this), _token);
 
-        if (response != HederaResponseCodes.SUCCESS) {
-            revert("Failed to associate token");
-        }
+    //     if (response != HederaResponseCodes.SUCCESS) {
+    //         revert("Failed to associate token");
+    //     }
 
-        return response;
-    }
+    //     return response;
+    // }
 
     function getTokenBid(address _token, uint _serialNumber, address _buyer) public view returns (Bid memory) {
         string memory nftId = formatNftId(_token, _serialNumber);
@@ -317,6 +326,12 @@ contract Market_Hedera is HederaTokenService {
         return getPaginatedBids(allBids, page, pageSize);
     }
 
+    function getNonFungibleTokenInfo(address _token, uint _id) internal view returns (NonFungibleTokenInfo memory) {
+        IERC721 nftContract = IERC721(_token);
+        NonFungibleTokenInfo memory tokenInfo = NonFungibleTokenInfo({owner: nftContract.ownerOf(_id), spender: nftContract.getApproved(_id)});
+        return tokenInfo;
+    }
+
     /////////////////////////////////
     ////////// NFT OWNER ////////////
     /////////////////////////////////
@@ -330,19 +345,19 @@ contract Market_Hedera is HederaTokenService {
             uint _serialNumber = _serialNumbers[i];
             uint _price = _prices[i];
 
-            (int responseCode, IHederaTokenService.NonFungibleTokenInfo memory tokenInfo) = HederaTokenService.getNonFungibleTokenInfo(_token, int64(int(_serialNumber)));
+            NonFungibleTokenInfo memory tokenInfo = getNonFungibleTokenInfo(_token, _serialNumber);
 
-            require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
-            require(tokenInfo.spenderId == address(this), "The Contract doesn't have allowance for this token");
-            require(msg.sender == tokenInfo.ownerId, "You have no permission for this function");
+            //require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
+            require(tokenInfo.spender == address(this), "The Contract doesn't have allowance for this token");
+            require(msg.sender == tokenInfo.owner, "You have no permission for this function");
 
             string memory nftId = formatNftId(_token, _serialNumber);
 
-            if (nfts[nftId].isListed && nfts[nftId].owner != tokenInfo.ownerId) {
+            if (nfts[nftId].isListed && nfts[nftId].owner != tokenInfo.owner) {
                 removeBids(nftId, address(0));
             }
 
-            nfts[nftId] = NFT({owner: payable(tokenInfo.ownerId), price: _price, token: _token, serialNumber: _serialNumber, isListed: true});
+            nfts[nftId] = NFT({owner: payable(tokenInfo.owner), price: _price, token: _token, serialNumber: _serialNumber, isListed: true});
 
             emit ListNFT(_token, _serialNumber, msg.sender, _price);
 
@@ -367,17 +382,17 @@ contract Market_Hedera is HederaTokenService {
     function unlistNFT(address _token, uint _serialNumber) external returns (uint) {
         string memory nftId = formatNftId(_token, _serialNumber);
 
-        (int responseCode, IHederaTokenService.NonFungibleTokenInfo memory tokenInfo) = HederaTokenService.getNonFungibleTokenInfo(_token, int64(int(_serialNumber)));
+        NonFungibleTokenInfo memory tokenInfo = getNonFungibleTokenInfo(_token, _serialNumber);
 
-        require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
+        //require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
 
-        require(msg.sender == tokenInfo.ownerId || msg.sender == contractOwner, "You have no permission for this function");
+        require(msg.sender == tokenInfo.owner || msg.sender == contractOwner, "You have no permission for this function");
 
         removeBids(nftId, address(0));
 
         nfts[nftId].isListed = false;
 
-        emit UnlistNFT(_token, _serialNumber, tokenInfo.ownerId, nfts[nftId].price);
+        emit UnlistNFT(_token, _serialNumber, tokenInfo.owner, nfts[nftId].price);
         return uint(MarketResponseCodes.SUCCESS);
     }
 
@@ -387,10 +402,10 @@ contract Market_Hedera is HederaTokenService {
         require(msg.sender == nfts[nftId].owner || msg.sender == address(this), "You have no permission for this function");
         require(nfts[nftId].isListed, "NFT not listed");
 
-        (int responseCode, IHederaTokenService.NonFungibleTokenInfo memory nftInfo) = HederaTokenService.getNonFungibleTokenInfo(_token, int64(int(_serialNumber)));
+        NonFungibleTokenInfo memory nftInfo = getNonFungibleTokenInfo(_token, _serialNumber);
 
-        require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
-        require(nftInfo.spenderId == address(this), "Contract doesn't have allowance for this NFT");
+        //require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
+        require(nftInfo.spender == address(this), "Contract doesn't have allowance for this NFT");
         require(buyersBidsIndexes[_buyer][nftId].isSet, "Buyer doesn't have bid for this NFT");
         require(tokenBids[nftId][buyersBidsIndexes[_buyer][nftId].tokenIndex].amount == _acceptedBidAmount, "This buyer didn't suggest that price value for this NFT");
         require(buyersTokens[_buyer].sphs >= _acceptedBidAmount, "Buyer doesn't have enough SPHs in the contract");
@@ -402,31 +417,30 @@ contract Market_Hedera is HederaTokenService {
             uint taxAmount = ownerRewardAmount * uint(int(taxFee / 1000));
 
             require(treasuryWalletAddress != address(0), "Treasury wallet address not set up.");
-            int response = HederaTokenService.transferToken(spheraTokenAddress, address(this), treasuryWalletAddress, int64(uint64(taxAmount)));
-            require(response == HederaResponseCodes.SUCCESS, "Failed to send tax Sph.");
+            //int response = HederaTokenService.transferToken(spheraTokenAddress, address(this), treasuryWalletAddress, int64(uint64(taxAmount)));
+            //require(response == HederaResponseCodes.SUCCESS, "Failed to send tax Sph.");
+            spheraTokenAddress.transfer(treasuryWalletAddress, taxAmount);
 
             ownerRewardAmount -= taxAmount;
         }
+        (address receiver, uint256 royaltyAmount) = ERC721Royalty(_token).royaltyInfo(_serialNumber, ownerRewardAmount);
+        //uint royaltyAmount = ownerRewardAmount * uint(int(royalty.numerator / royalty.denominator));
 
-        IHederaTokenService.RoyaltyFee memory royalty = nftInfo.tokenInfo.royaltyFees[0];
-        if (royalty.numerator > 0) {
-            uint royaltyAmount = ownerRewardAmount * uint(int(royalty.numerator / royalty.denominator));
+        // (bool royaltySent, ) = payable(royalty.feeCollector).call{value: royaltyAmount}("");
+        // require(royaltySent, "Failed to send royalty Sph");
 
-            // (bool royaltySent, ) = payable(royalty.feeCollector).call{value: royaltyAmount}("");
-            // require(royaltySent, "Failed to send royalty Sph");
+        // int response = HederaTokenService.transferToken(spheraTokenAddress, address(this), royalty.feeCollector, int64(uint64(royaltyAmount)));
+        // require(response == HederaResponseCodes.SUCCESS, "Failed to send royalty Sph");
+        spheraTokenAddress.transfer(receiver, royaltyAmount);
 
-            int response = HederaTokenService.transferToken(spheraTokenAddress, address(this), royalty.feeCollector, int64(uint64(royaltyAmount)));
-            require(response == HederaResponseCodes.SUCCESS, "Failed to send royalty Sph");
-
-            ownerRewardAmount -= royaltyAmount;
-        }
+        ownerRewardAmount -= royaltyAmount;
 
         sendSphs(_buyer, nfts[nftId].owner, ownerRewardAmount);
 
         // transfer NFT
-        int nftTransferResponse = this.transferFromNFT(_token, nfts[nftId].owner, _buyer, _serialNumber);
-        require(nftTransferResponse == HederaResponseCodes.SUCCESS, "Failed to transfer NFT");
-
+        // int nftTransferResponse = this.transferFromNFT(_token, nfts[nftId].owner, _buyer, _serialNumber);
+        // require(nftTransferResponse == HederaResponseCodes.SUCCESS, "Failed to transfer NFT");
+        IERC721(_token).safeTransferFrom(nfts[nftId].owner, _buyer, _serialNumber);
         // return money for other bids
         removeBids(nftId, _buyer);
 
@@ -449,14 +463,14 @@ contract Market_Hedera is HederaTokenService {
 
         require(nfts[nftId].isListed, "NFT not listed");
 
-        (int responseCode, IHederaTokenService.NonFungibleTokenInfo memory nftInfo) = HederaTokenService.getNonFungibleTokenInfo(_token, int64(int(_serialNumber)));
+        NonFungibleTokenInfo memory nftInfo = getNonFungibleTokenInfo(_token, _serialNumber);
 
-        require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
-        require(nftInfo.ownerId == nfts[nftId].owner, "Nft owner has been changed. Invalid NFT listing.");
+        //require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
+        require(nftInfo.owner == nfts[nftId].owner, "Nft owner has been changed. Invalid NFT listing.");
 
-        int response = HederaTokenService.transferToken(spheraTokenAddress, msg.sender, address(this), int64(uint64(tokenAmount)));
-        require(response == HederaResponseCodes.SUCCESS, "Failed to transfer Sphera Token");
-
+        // int response = HederaTokenService.transferToken(spheraTokenAddress, msg.sender, address(this), int64(uint64(tokenAmount)));
+        // require(response == HederaResponseCodes.SUCCESS, "Failed to transfer Sphera Token");
+        spheraTokenAddress.transferFrom(msg.sender, address(this), tokenAmount);
         // add buyer info to contract to track buyer money in the contract
         if (buyersTokens[_buyer].sphs == 0) {
             buyersTokens[_buyer] = BuyerTokens({sphs: tokenAmount});
@@ -479,7 +493,7 @@ contract Market_Hedera is HederaTokenService {
                 return this.acceptBid(_token, _serialNumber, _buyer, tokenAmount);
             }
 
-            emit AddBid(_token, _serialNumber, nftInfo.ownerId, msg.sender, tokenAmount);
+            emit AddBid(_token, _serialNumber, nftInfo.owner, msg.sender, tokenAmount);
             return uint(MarketResponseCodes.SUCCESS);
         }
 
@@ -496,7 +510,7 @@ contract Market_Hedera is HederaTokenService {
             return this.acceptBid(_token, _serialNumber, _buyer, bid.amount);
         }
 
-        emit AddBid(_token, _serialNumber, nftInfo.ownerId, msg.sender, tokenAmount);
+        emit AddBid(_token, _serialNumber, nftInfo.owner, msg.sender, tokenAmount);
         return uint(MarketResponseCodes.SUCCESS);
     }
 

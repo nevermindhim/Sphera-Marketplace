@@ -1,6 +1,7 @@
 const fs = require("fs")
+const hardhat = require("hardhat")
 
-module.exports = async function ({ deployments, getNamedAccounts }) {
+module.exports = async function ({ deployments, network, getNamedAccounts }) {
     const { deploy } = deployments
     const { deployer } = await getNamedAccounts()
 
@@ -13,7 +14,7 @@ module.exports = async function ({ deployments, getNamedAccounts }) {
     })
 
     const content = JSON.parse(fs.readFileSync("./constants/marketplaceArgs.json", "utf-8"))
-    content["spheraNFTAddress"] = result.address
+    content[network.name]["spheraNFTAddress"] = result.address
 
     fs.writeFileSync("./constants/marketplaceArgs.json", JSON.stringify(content))
 

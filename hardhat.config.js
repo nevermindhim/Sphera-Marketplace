@@ -174,11 +174,32 @@ module.exports = {
             chainId: 11235,
             accounts: accounts(),
         },
+        "chiliz-testnet": {
+            url: "https://scoville-rpc.chiliz.com",
+            chainId: 88880,
+            accounts: accounts(),
+        },
+        "chiliz-mainnet": {
+            url: "https://chiliz.publicnode.com",
+            chainId: 88888,
+            accounts: accounts(),
+        },
     },
     etherscan: {
         apiKey: {
             mainnet: "5KKUIPX5EDA1KX2RU7ZSAKYWMEJWPZQT4X",
             sepolia: "5KKUIPX5EDA1KX2RU7ZSAKYWMEJWPZQT4X",
+            "blast-testnet": "4RIXS7DXFJNT2MHMGAG18RWRDBC77U53W5",
         },
+        customChains: [
+            {
+                network: "blast-testnet",
+                chainId: 168587773,
+                urls: {
+                    apiURL: "https://api-sepolia.blastscan.io/api",
+                    browserURL: "https://testnet.blastscan.io/",
+                },
+            },
+        ],
     },
 }

@@ -1,1 +1,15 @@
-{"nftMarketplaceAddress":"0x45697dfc5e1D13c839E0983d0FE3aD13d96D5B30","spheraNFTAddress":"0x88E023Abf51E3A1F8754847bFb3A45226Bfab1e6","spheraTokenAddress":"0x6Cee3cFC99dD145287030414563eFc5176da5feE","treasuryWalletAddress":"0x43b1DB0EC2167C8811cA0216A35B3bEfc339689c"}
+{
+  "blast-testnet": {
+    "nftMarketplaceAddress": "0xc9E3f99a80272764195E3D52C16693B914763680",
+    "spheraNFTAddress": "0x84E7f04408EcEDE39Dd8E19799Ca14413a70eED6",
+    "spheraTokenAddress": "0x7DB0Ee5162e00fBB84A7603606bf0B25A8dA309C",
+    "treasuryWalletAddress": "0x43b1DB0EC2167C8811cA0216A35B3bEfc339689c"
+  },
+
+  "haqq-testnet": {
+    "nftMarketplaceAddress": "0x45697dfc5e1D13c839E0983d0FE3aD13d96D5B30",
+    "spheraNFTAddress": "0x88E023Abf51E3A1F8754847bFb3A45226Bfab1e6",
+    "spheraTokenAddress": "0x6Cee3cFC99dD145287030414563eFc5176da5feE",
+    "treasuryWalletAddress": "0x43b1DB0EC2167C8811cA0216A35B3bEfc339689c"
+  }
+}

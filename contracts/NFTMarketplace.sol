@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.0 <0.9.0;
 
-// import "./HederaTokenService.sol";
-// import "./IHederaTokenService.sol";
-// import "./HederaResponseCodes.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Royalty.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract NFTMarketplace is ERC2981 {
     // Error Codes
@@ -28,18 +26,14 @@ contract NFTMarketplace is ERC2981 {
         SPH_TRANSFER_FAILED
     }
 
-    /////////////////////////////////
     //////////// EVENTS /////////////
-    /////////////////////////////////
     event ListNFT(address indexed token, uint indexed serialNumber, address indexed _owner, uint price);
     event UnlistNFT(address indexed token, uint indexed serialNumber, address indexed owner, uint price);
     event AddBid(address indexed token, uint serialNumber, address indexed owner, address indexed buyer, uint amount);
     event DeleteBid(address indexed token, uint indexed serialNumber, address indexed owner, uint amount);
     event AcceptBid(address indexed token, uint serialNumber, address indexed owner, address indexed buyer, uint acceptedBidAmount);
 
-    /////////////////////////////////
     ///////// STRUCTURES ////////////
-    /////////////////////////////////
     struct Bid {
         address payable owner;
         uint amount;
@@ -73,9 +67,7 @@ contract NFTMarketplace is ERC2981 {
         address spender;
     }
 
-    /////////////////////////////////
     ////////// VARIABLES ////////////
-    /////////////////////////////////
 
     // Mapping to store bids for each buyer
     mapping(string => Bid[]) public tokenBids;
@@ -107,9 +99,7 @@ contract NFTMarketplace is ERC2981 {
 
     fallback() external payable {}
 
-    /////////////////////////////////
     //////////// INTERNAL ///////////
-    /////////////////////////////////
 
     function removeBidInfo(string memory nftId, address _buyer) internal {
         address nftOwner = nfts[nftId].owner;
@@ -152,9 +142,7 @@ contract NFTMarketplace is ERC2981 {
             }
         }
 
-        /////////////////////
         /////// FINAL ///////
-        /////////////////////
 
         // Remove pointer for removed bid
         buyersBidsIndexes[_buyer][nftId].isSet = false;
@@ -171,11 +159,7 @@ contract NFTMarketplace is ERC2981 {
     function sendSphs(address sender, address recipient, uint amount) internal {
         require(buyersTokens[sender].sphs >= amount, "Not enough user sphs on the contract!");
 
-        // (bool sent, ) = recipient.call{value: amount}("");
-        // require(sent, "Failed to send Sph");
-        //int response = HederaTokenService.transferToken(spheraTokenAddress, address(this), recipient, int64(uint64(amount)));
-        spheraTokenAddress.transfer(recipient, amount);
-        //require(response == HederaResponseCodes.SUCCESS, "Failed to transfer Sphera Token");
+        IERC20(spheraTokenAddress).transfer(recipient, amount);
 
         if (sender != address(this)) {
             buyersTokens[sender].sphs -= amount;
@@ -279,20 +263,7 @@ contract NFTMarketplace is ERC2981 {
         return pageBids;
     }
 
-    /////////////////////////////////
     //////////// PUBLIC /////////////
-    /////////////////////////////////
-
-    // function associateToken(address _token) external onlyContractOwner returns (int) {
-    //     int response = HederaTokenService.associateToken(address(this), _token);
-
-    //     if (response != HederaResponseCodes.SUCCESS) {
-    //         revert("Failed to associate token");
-    //     }
-
-    //     return response;
-    // }
-
     function getTokenBid(address _token, uint _serialNumber, address _buyer) public view returns (Bid memory) {
         string memory nftId = formatNftId(_token, _serialNumber);
 
@@ -332,9 +303,7 @@ contract NFTMarketplace is ERC2981 {
         return tokenInfo;
     }
 
-    /////////////////////////////////
     ////////// NFT OWNER ////////////
-    /////////////////////////////////
 
     function listNFT(address[] memory _tokens, uint[] memory _serialNumbers, uint[] memory _prices) external returns (uint) {
         require(_tokens.length > 0 && _serialNumbers.length > 0 && _prices.length > 0, "Array length should be more than 0");
@@ -347,7 +316,6 @@ contract NFTMarketplace is ERC2981 {
 
             NonFungibleTokenInfo memory tokenInfo = getNonFungibleTokenInfo(_token, _serialNumber);
 
-            //require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
             require(tokenInfo.spender == address(this), "The Contract doesn't have allowance for this token");
             require(msg.sender == tokenInfo.owner, "You have no permission for this function");
 
@@ -384,8 +352,6 @@ contract NFTMarketplace is ERC2981 {
 
         NonFungibleTokenInfo memory tokenInfo = getNonFungibleTokenInfo(_token, _serialNumber);
 
-        //require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
-
         require(msg.sender == tokenInfo.owner || msg.sender == contractOwner, "You have no permission for this function");
 
         removeBids(nftId, address(0));
@@ -417,29 +383,20 @@ contract NFTMarketplace is ERC2981 {
             uint taxAmount = ownerRewardAmount * uint(int(taxFee / 1000));
 
             require(treasuryWalletAddress != address(0), "Treasury wallet address not set up.");
-            //int response = HederaTokenService.transferToken(spheraTokenAddress, address(this), treasuryWalletAddress, int64(uint64(taxAmount)));
-            //require(response == HederaResponseCodes.SUCCESS, "Failed to send tax Sph.");
-            spheraTokenAddress.transfer(treasuryWalletAddress, taxAmount);
+            IERC20(spheraTokenAddress).transfer(treasuryWalletAddress, taxAmount);
 
             ownerRewardAmount -= taxAmount;
         }
-        (address receiver, uint256 royaltyAmount) = ERC721Royalty(_token).royaltyInfo(_serialNumber, ownerRewardAmount);
-        //uint royaltyAmount = ownerRewardAmount * uint(int(royalty.numerator / royalty.denominator));
+        if (checkIfSupportsERC2981(_token)) {
+            (address receiver, uint256 royaltyAmount) = ERC721Royalty(_token).royaltyInfo(_serialNumber, ownerRewardAmount);
+            IERC20(spheraTokenAddress).transfer(receiver, royaltyAmount);
 
-        // (bool royaltySent, ) = payable(royalty.feeCollector).call{value: royaltyAmount}("");
-        // require(royaltySent, "Failed to send royalty Sph");
-
-        // int response = HederaTokenService.transferToken(spheraTokenAddress, address(this), royalty.feeCollector, int64(uint64(royaltyAmount)));
-        // require(response == HederaResponseCodes.SUCCESS, "Failed to send royalty Sph");
-        spheraTokenAddress.transfer(receiver, royaltyAmount);
-
-        ownerRewardAmount -= royaltyAmount;
+            ownerRewardAmount -= royaltyAmount;
+        }
 
         sendSphs(_buyer, nfts[nftId].owner, ownerRewardAmount);
 
         // transfer NFT
-        // int nftTransferResponse = this.transferFromNFT(_token, nfts[nftId].owner, _buyer, _serialNumber);
-        // require(nftTransferResponse == HederaResponseCodes.SUCCESS, "Failed to transfer NFT");
         IERC721(_token).safeTransferFrom(nfts[nftId].owner, _buyer, _serialNumber);
         // return money for other bids
         removeBids(nftId, _buyer);
@@ -453,11 +410,9 @@ contract NFTMarketplace is ERC2981 {
         return uint(MarketResponseCodes.SUCCESS);
     }
 
-    /////////////////////////////////
     ///////////// BUYER /////////////
-    /////////////////////////////////
 
-    function addBid(address _token, uint _serialNumber, uint tokenAmount) external payable returns (uint) {
+    function addBid(address _token, uint _serialNumber, uint tokenAmount) external returns (uint) {
         address payable _buyer = payable(msg.sender);
         string memory nftId = formatNftId(_token, _serialNumber);
 
@@ -465,12 +420,8 @@ contract NFTMarketplace is ERC2981 {
 
         NonFungibleTokenInfo memory nftInfo = getNonFungibleTokenInfo(_token, _serialNumber);
 
-        //require(responseCode == HederaResponseCodes.SUCCESS, "Failed to fetch NFT Info");
         require(nftInfo.owner == nfts[nftId].owner, "Nft owner has been changed. Invalid NFT listing.");
-
-        // int response = HederaTokenService.transferToken(spheraTokenAddress, msg.sender, address(this), int64(uint64(tokenAmount)));
-        // require(response == HederaResponseCodes.SUCCESS, "Failed to transfer Sphera Token");
-        spheraTokenAddress.transferFrom(msg.sender, address(this), tokenAmount);
+        IERC20(spheraTokenAddress).transferFrom(msg.sender, address(this), tokenAmount);
         // add buyer info to contract to track buyer money in the contract
         if (buyersTokens[_buyer].sphs == 0) {
             buyersTokens[_buyer] = BuyerTokens({sphs: tokenAmount});
@@ -535,5 +486,10 @@ contract NFTMarketplace is ERC2981 {
 
     function changeTaxFee(uint _newFee) public onlyContractOwner {
         taxFee = _newFee;
+    }
+
+    function checkIfSupportsERC2981(address nftAddress) public view returns (bool) {
+        bytes4 interfaceId = 0x2a55205a; // ERC2981 interface ID
+        return IERC165(nftAddress).supportsInterface(interfaceId);
     }
 }

@@ -7,10 +7,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract SpheraToken is ERC20, Ownable {
     // Error Codes
     constructor(string memory _name, string memory _symbol) Ownable() ERC20(_name, _symbol) {
-        _mint(address(this), 200000000 * (10**18));
+        _mint(address(this), 200000000 * (10 ** 18));
     }
 
-    function issueToken(address _to, uint _amount) public onlyOwner {
-        transfer(_to, _amount);
+    function issueToken(address _to, uint _amount) public {
+        this.transfer(_to, _amount);
     }
 }

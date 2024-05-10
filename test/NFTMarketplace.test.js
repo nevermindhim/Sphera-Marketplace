@@ -1,40 +1,98 @@
 const { expect } = require("chai")
 const { ethers } = require("hardhat")
 
-describe("NFTMarketplace", function () {
-    let NFTMarketplace, nftMarketplace, owner, addr1, addr2
-
+describe("Deploy Contracts", function () {
+    let spheraToken, spheraNFT, nftMarketplace
+    let owner, addr1, addr2
     beforeEach(async function () {
-        // Deploy the NFTMarketplace contract
-        NFTMarketplace = await ethers.getContractFactory("NFTMarketplace")
-        ;[owner, addr1, addr2, ...addrs] = await ethers.getSigners()
-        nftMarketplace = await NFTMarketplace.deploy()
+        // Deploy ERC20 contract
+
+        ;[owner, addr1, addr2, addr3] = await ethers.getSigners()
+
+        const SpheraTokenFactory = await ethers.getContractFactory("SpheraToken")
+        spheraToken = await SpheraTokenFactory.deploy("SpheraToken", "SPT")
+        await spheraToken.deployed()
+
+        // Deploy SpheraNFT contract
+        const SpheraNFTFactory = await ethers.getContractFactory("SpheraNFT")
+        spheraNFT = await SpheraNFTFactory.deploy()
+        await spheraNFT.deployed()
+
+        // Deploy NFTMarketplace contract
+        const NFTMarketplaceFactory = await ethers.getContractFactory("NFTMarketplace")
+        nftMarketplace = await NFTMarketplaceFactory.deploy()
         await nftMarketplace.deployed()
+
+        console.log("SpheraToken deployed to:", spheraToken.address)
+        console.log("SpheraNFT deployed to:", spheraNFT.address)
+        console.log("NFTMarketplace deployed to:", nftMarketplace.address)
+
+        await spheraNFT.connect(addr1).issueToken()
+        await spheraToken.connect(addr2).issueToken(addr2.address, 10000)
+        await spheraToken.connect(addr3).issueToken(addr3.address, 10000)
+
+        await nftMarketplace.registerSpheraToken(spheraToken.address)
+        await nftMarketplace.setTreasuryWalletAddress(owner.address)
     })
 
-    describe("Deployment", function () {
-        it("Should set the right owner", async function () {
-            expect(await nftMarketplace.contractOwner()).to.equal(owner.address)
-        })
+    it("Should list an NFT", async function () {
+        await spheraNFT.connect(addr1).approve(nftMarketplace.address, 0)
+        await expect(nftMarketplace.connect(addr1).listNFT([spheraNFT.address], [0], [5000]))
+            .to.emit(nftMarketplace, "ListNFT")
+            .withArgs(spheraNFT.address, 0, addr1.address, 5000)
     })
 
-    describe("Listing and Unlisting NFTs", function () {
-        it("Should list an NFT", async function () {
-            // Assuming you have an ERC721 token deployed and minted
-            const token = await ethers.getContractAt("IERC721", "TOKEN_ADDRESS")
-            const tokenId = 1 // Example token ID
-            await token.connect(owner).approve(nftMarketplace.address, tokenId)
-            await nftMarketplace.connect(owner).listNFT([token.address], [tokenId], [100])
-            expect(await nftMarketplace.nfts(formatNftId(token.address, tokenId))).to.exist
-        })
+    it("Should fail listing an NFT", async function () {
+        await expect(nftMarketplace.connect(addr1).listNFT([spheraNFT.address], [1], [5000])).revertedWith("ERC721: invalid token ID")
+        await expect(nftMarketplace.connect(addr1).listNFT([spheraNFT.address], [0], [5000])).revertedWith(
+            "The Contract doesn't have allowance for this token"
+        )
+    })
 
-        it("Should unlist an NFT", async function () {
-            // Assuming you have an ERC721 token deployed and minted
-            const token = await ethers.getContractAt("IERC721", "TOKEN_ADDRESS")
-            const tokenId = 1 // Example token ID
-            await token.connect(owner).approve(nftMarketplace.address, tokenId)
-            await nftMarketplace.connect(owner).unlistNFT(token.address, tokenId)
-            expect(await nftMarketplace.nfts(formatNftId(token.address, tokenId)).isListed()).to.be.false
-        })
+    it("Should unlist NFTs", async function () {
+        await spheraNFT.connect(addr1).approve(nftMarketplace.address, 0)
+        await nftMarketplace.connect(addr1).listNFT([spheraNFT.address], [0], [5000])
+        await expect(nftMarketplace.connect(addr1).unlistNFT(spheraNFT.address, 0))
+            .to.emit(nftMarketplace, "UnlistNFT")
+            .withArgs(spheraNFT.address, 0, addr1.address, 5000)
+    })
+
+    it("Should add Bids", async function () {
+        await spheraNFT.connect(addr1).approve(nftMarketplace.address, 0)
+        await nftMarketplace.connect(addr1).listNFT([spheraNFT.address], [0], [5000])
+
+        await spheraToken.connect(addr2).approve(nftMarketplace.address, 3000)
+        await expect(nftMarketplace.connect(addr2).addBid(spheraNFT.address, 0, 3000))
+            .to.emit(nftMarketplace, "AddBid")
+            .withArgs(spheraNFT.address, 0, addr1.address, addr2.address, 3000)
+    })
+
+    it("Should remove Bids", async function () {
+        await spheraNFT.connect(addr1).approve(nftMarketplace.address, 0)
+        await nftMarketplace.connect(addr1).listNFT([spheraNFT.address], [0], [5000])
+
+        await spheraToken.connect(addr2).approve(nftMarketplace.address, 3000)
+        await nftMarketplace.connect(addr2).addBid(spheraNFT.address, 0, 3000)
+
+        await nftMarketplace.connect(addr2).deleteBid(spheraNFT.address, 0, addr2.address)
+    })
+
+    it("Should buy NFTs", async function () {
+        await spheraNFT.connect(addr1).approve(nftMarketplace.address, 0)
+        await nftMarketplace.connect(addr1).listNFT([spheraNFT.address], [0], [5000])
+
+        await spheraToken.connect(addr3).approve(nftMarketplace.address, 3000)
+        await nftMarketplace.connect(addr3).addBid(spheraNFT.address, 0, 3000)
+
+        expect(await spheraNFT.ownerOf(0)).equal(addr1.address)
+        expect(await spheraToken.balanceOf(addr1.address)).equal(0)
+        expect(await spheraToken.balanceOf(addr3.address)).equal(7000)
+
+        await spheraToken.connect(addr2).approve(nftMarketplace.address, 6000)
+        await nftMarketplace.connect(addr2).addBid(spheraNFT.address, 0, 6000)
+
+        expect(await spheraNFT.ownerOf(0)).equal(addr2.address)
+        expect(await spheraToken.balanceOf(addr1.address)).equal(6000)
+        expect(await spheraToken.balanceOf(addr3.address)).equal(10000)
     })
 })

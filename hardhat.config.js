@@ -164,6 +164,16 @@ module.exports = {
             chainId: 168587773,
             accounts: accounts(),
         },
+        "haqq-testnet": {
+            url: "https://rpc.eth.testedge2.haqq.network",
+            chainId: 54211,
+            accounts: accounts(),
+        },
+        "haqq-mainnet": {
+            url: "https://haqq-evm.publicnode.com",
+            chainId: 11235,
+            accounts: accounts(),
+        },
     },
     etherscan: {
         apiKey: {

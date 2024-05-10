@@ -1,15 +1,25 @@
+const fs = require("fs")
+
 module.exports = async function ({ deployments, getNamedAccounts }) {
     const { deploy } = deployments
     const { deployer } = await getNamedAccounts()
 
     console.log(`>>> your address: ${deployer}`)
 
-    await deploy("SpheraNFT", {
+    const result = await deploy("SpheraNFT", {
         from: deployer,
         log: true,
         waitConfirmations: 3,
     })
-    await hre.run("verifyContract", { contract: "SpheraNFT" })
+
+    const content = JSON.parse(fs.readFileSync("./constants/marketplaceArgs.json", "utf-8"))
+    content["spheraNFTAddress"] = result.address
+
+    fs.writeFileSync("./constants/marketplaceArgs.json", JSON.stringify(content))
+
+    await hardhat.run("verify:verify", {
+        address: result.address,
+    })
 }
 
 module.exports.tags = ["SpheraNFT"]

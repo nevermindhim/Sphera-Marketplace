@@ -18,6 +18,7 @@
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "@openzeppelin/hardhat-upgrades": "^1.28.0",
     "dotenv": "^10.0.0",
+    "fs": "^0.0.1-security",
     "hardhat": "^2.8.0",
     "hardhat-contract-sizer": "^2.1.1",
     "hardhat-deploy": "^0.10.5",

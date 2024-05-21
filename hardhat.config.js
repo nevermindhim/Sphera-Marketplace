@@ -144,6 +144,11 @@ module.exports = {
             chainId: 421613,
             accounts: accounts(),
         },
+        "arbitrum-sepolia": {
+            url: `https://arbitrum-sepolia.blockpi.network/v1/rpc/public`,
+            chainId: 421614,
+            accounts: accounts(),
+        },
         "optimism-goerli": {
             url: `https://goerli.optimism.io/`,
             chainId: 420,
@@ -190,6 +195,7 @@ module.exports = {
             mainnet: "5KKUIPX5EDA1KX2RU7ZSAKYWMEJWPZQT4X",
             sepolia: "5KKUIPX5EDA1KX2RU7ZSAKYWMEJWPZQT4X",
             "blast-testnet": "4RIXS7DXFJNT2MHMGAG18RWRDBC77U53W5",
+            "arbitrum-sepolia": "3R51Z4ZRJZPT3U62QUSGG8ZA6DSJPFVIRM",
         },
         customChains: [
             {
@@ -200,6 +206,17 @@ module.exports = {
                     browserURL: "https://testnet.blastscan.io/",
                 },
             },
+            {
+                network: "arbitrum-sepolia",
+                chainId: 421614,
+                urls: {
+                    apiURL: "https://api-sepolia.arbiscan.io/api/",
+                    browserURL: "https://sepolia.arbiscan.io/",
+                },
+            },
         ],
+    },
+    sourcify: {
+        enabled: true,
     },
 }

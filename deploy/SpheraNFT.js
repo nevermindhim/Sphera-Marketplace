@@ -17,10 +17,13 @@ module.exports = async function ({ deployments, network, getNamedAccounts }) {
     content[network.name]["spheraNFTAddress"] = result.address
 
     fs.writeFileSync("./constants/marketplaceArgs.json", JSON.stringify(content))
-
-    await hardhat.run("verify:verify", {
-        address: result.address,
-    })
+    try {
+        await hardhat.run("verify:verify", {
+            address: result.address,
+        })
+    } catch (error) {
+        console.log(error)
+    }
 }
 
 module.exports.tags = ["SpheraNFT"]

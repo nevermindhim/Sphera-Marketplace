@@ -18,10 +18,14 @@ module.exports = async function ({ deployments, getNamedAccounts }) {
 
     fs.writeFileSync("./constants/marketplaceArgs.json", JSON.stringify(content))
 
-    await hardhat.run("verify:verify", {
-        address: result.address,
-        constructorArguments: ["SpheraToken", "SPT"],
-    })
+    try {
+        await hardhat.run("verify:verify", {
+            address: result.address,
+            constructorArguments: ["SpheraToken", "SPT"],
+        })
+    } catch (error) {
+        console.log(error)
+    }
 }
 
 module.exports.tags = ["SpheraToken"]
